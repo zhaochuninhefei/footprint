@@ -51,7 +51,7 @@ public class JdbcUtil {
         properties.setProperty("maxIdle", "5");
         properties.setProperty("minIdle", "0");
         properties.setProperty("maxWait", "0");
-        properties.setProperty("initialSize", "5");
+        properties.setProperty("initialSize", "1");
         logger.debug("DataSource Properties : " + properties.toString());
         try {
             this.dataSource = BasicDataSourceFactory.createDataSource(properties);
