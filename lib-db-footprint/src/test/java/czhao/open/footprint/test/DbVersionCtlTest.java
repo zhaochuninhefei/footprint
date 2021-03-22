@@ -39,7 +39,7 @@ public class DbVersionCtlTest {
     private static final String JDBC_DRIVER = "com.mysql.jdbc.Driver";
     private static final String JDBC_URL = "jdbc:mysql://mysql-brood-base:3306/db_brood_raven_test?useUnicode=true&characterEncoding=UTF-8&useSSL=false";
     private static final String JDBC_USER = "root";
-    private static final String JDBC_PASSWORD = "overseas";
+    private static final String JDBC_PASSWORD = "whatever";
 
     private static final String DB_VERSION_TBL_NAME = "brood_db_version_ctl1";
 
