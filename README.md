@@ -7,21 +7,19 @@
 
 因此我自己造了一个功能类似`flyway`的轮子：`footprint`。这也是一个数据库版本管控工具，提供一个简单的jar包，配合一些属性配置即可使用。比`flyway`多出的功能就是支持一个database下多个`业务空间`的版本管控。
 
-如果你的项目不需要比database更细粒度的数据库版本管控，那么可以直接使用`flyway`，参考我之前的文章：
 
-<a href="https://zhuanlan.zhihu.com/p/358998547" target="_blank">https://zhuanlan.zhihu.com/p/358998547</a>
-
-
-# 二、资源获取
-`footprint`在gitee上开源，地址如下：
-
-<a href="https://gitee.com/XiaTangShaoBing/footprint" target="_blank">https://gitee.com/XiaTangShaoBing/footprint</a>
-
-# 三、使用说明
+# 二、简述
 `footprint`使用简单，直接依赖jar包，并自行使用工具类`DbVersionCtl`在适当的时机调用数据库版本控制方法`doDBVersionControl`即可。
 
-# 3.1 简述
 `footprint`将在目标数据库database下自动创建数据库版本控制表`brood_db_version_ctl`，并执行指定资源目录下满足sql脚本文件命名规约的sql文，并将执行结果记录到数据库版本控制表`brood_db_version_ctl`；当数据库版本控制表`brood_db_version_ctl`已经存在时，`footprint`将自动查找更高版本的sql脚本，然后执行并记录它们。
+
+
+具体的使用，请继续阅读。
+
+# 三、使用说明
+请先学习数据库版本管理表与sql脚本命名规约，然后理解测试案例，然后再看如何在一个springboot中使用`footprint`。
+
+## 3.1 数据库版本管理表与sql脚本命名规约
 
 - 数据库版本控制表`brood_db_version_ctl`结构如下:
 
@@ -57,8 +55,6 @@ CREATE TABLE IF NOT EXISTS `brood_db_version_ctl` (
 
 一个典型的sql文命名示例：`raven_V1.0.0_init.sql`。
 > 注意，这里的版本号建议与项目jar包的版本保持一致。比如jar包版本是`1.0.0-RELEASE`，那么这里就建议使用`V1.0.0`作为版本号。
-
-具体的使用，请继续阅读。
 
 ## 3.2 测试案例
 本地从gitee获取到工程`lib-db-footprint`之后，使用Java11以上版本的IDE打开，如IDEA或Eclipse。然后找到测试案例：`DbVersionCtlTest`。
