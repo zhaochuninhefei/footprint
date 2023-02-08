@@ -9,7 +9,6 @@ import org.slf4j.LoggerFactory;
 import javax.sql.DataSource;
 import java.sql.Connection;
 import java.sql.SQLException;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Properties;
 
@@ -52,7 +51,7 @@ public class JdbcUtil {
         properties.setProperty("minIdle", "0");
         properties.setProperty("maxWait", "0");
         properties.setProperty("initialSize", "1");
-        logger.debug("DataSource Properties : " + properties.toString());
+        logger.debug("DataSource Properties : {}", properties);
         try {
             this.dataSource = BasicDataSourceFactory.createDataSource(properties);
             this.sqlRunner = new QueryRunner(this.dataSource);
@@ -65,10 +64,10 @@ public class JdbcUtil {
      * 关闭连接池
      */
     public void close() {
-        if (this.dataSource != null && this.dataSource instanceof BasicDataSource) {
+        if (this.dataSource instanceof BasicDataSource ds) {
             try {
                 logger.info("dataSource close...");
-                ((BasicDataSource) this.dataSource).close();
+                ds.close();
             } catch (SQLException e) {
                 throw new RuntimeException(e);
             }
@@ -110,7 +109,7 @@ public class JdbcUtil {
      * @param params sql参数
      */
     public void execute(String sql, Object... params) {
-        logger.debug("execute(String sql, Object... params), sql:[{}], params:{}", sql, Arrays.toString(params));
+        logger.debug("execute(String sql, Object... params), sql:[{}], params:{}", sql, params);
         try {
             sqlRunner.execute(sql, params);
         } catch (SQLException e) {
@@ -126,7 +125,7 @@ public class JdbcUtil {
      * @param params     sql参数
      */
     public void execute(Connection connection, String sql, Object... params) {
-        logger.debug("execute(Connection connection, String sql, Object... params), sql:[{}], params:{}", sql, Arrays.toString(params));
+        logger.debug("execute(Connection connection, String sql, Object... params), sql:[{}], params:{}", sql, params);
         try {
             sqlRunner.execute(connection, sql, params);
         } catch (SQLException e) {

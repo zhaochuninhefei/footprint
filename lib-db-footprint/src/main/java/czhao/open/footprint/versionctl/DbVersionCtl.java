@@ -2,15 +2,13 @@ package czhao.open.footprint.versionctl;
 
 import czhao.open.footprint.utils.JdbcUtil;
 import czhao.open.footprint.versionctl.chain.DbVersionCtlContext;
-import czhao.open.footprint.versionctl.task.CreateVersionTblTask;
-import czhao.open.footprint.versionctl.task.DropVersionTblTask;
-import czhao.open.footprint.versionctl.task.IncreaseVersionTask;
-import czhao.open.footprint.versionctl.task.InsertBaselineTask;
+import czhao.open.footprint.versionctl.task.*;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * 数据库版本控制器
@@ -66,30 +64,28 @@ public class DbVersionCtl {
             context.pollTask().doMyWork();
         } finally {
             // 关闭JDBC连接与连接池
-            if (context != null) {
-                context.closeGcJdbcUtil();
-            }
+            Optional.ofNullable(context).ifPresent(DbVersionCtlContext::closeGcJdbcUtil);
         }
 
     }
 
     private void assemblyTaskChain(DbVersionCtlContext context, OperationMode operationMode) {
         switch (operationMode) {
-            case DEPLOY_INIT:
-                context.offerTask(new CreateVersionTblTask(context));
-                break;
-            case BASELINE_INIT:
+            case DEPLOY_INIT -> context.offerTask(new CreateVersionTblTask(context));
+            case BASELINE_INIT -> {
                 context.offerTask(new CreateVersionTblTask(context));
                 context.offerTask(new InsertBaselineTask(context));
-                break;
-            case BASELINE_RESET:
+            }
+            case BASELINE_RESET -> {
                 context.offerTask(new DropVersionTblTask(context));
                 context.offerTask(new CreateVersionTblTask(context));
                 context.offerTask(new InsertBaselineTask(context));
-                break;
-            case DEPLOY_INCREASE:
-            default:
-                break;
+            }
+            case DEPLOY_INCREASE -> {
+                if ("y".equalsIgnoreCase(dbVersionCtlProps.getModifyDbVersionTable())) {
+                    context.offerTask(new ModifyVersionTblTask(context));
+                }
+            }
         }
         context.offerTask(new IncreaseVersionTask(context));
     }
@@ -97,7 +93,7 @@ public class DbVersionCtl {
     private OperationMode chargeOperationMode(JdbcUtil jdbcUtil) {
         // 判断当前database是否非空
         List<String> tblNames = queryExistTblNames(jdbcUtil);
-        if (tblNames.size() == 0) {
+        if (tblNames.isEmpty()) {
             // 当前database为空，首次启动服务，导入全部数据库脚本，并创建数据库版本控制表，并生成数据库版本记录。
             return OperationMode.DEPLOY_INIT;
         } else {
@@ -106,13 +102,12 @@ public class DbVersionCtl {
             if (tblNames.stream().anyMatch(dbVersionTableName::equals)) {
                 // 判断是否需要重置数据库版本控制表
                 if ("y".equals(this.dbVersionCtlProps.getBaselineReset())
-                        && !this.dbVersionCtlProps.getBaselineResetConditionSql().isBlank()) {
+                        && !this.dbVersionCtlProps.getBaselineResetConditionSql().isBlank()
+                        && checkBaselineResetConditionSql(jdbcUtil)) {
                     // 查询数据库版本控制表的最新记录。
                     // 只有属性[baselineResetConditionSql]配置的sql查询到有记录，才会执行基线重置操作。
                     // baselineResetConditionSql在配置时建议将install_time字段作为条件去查询，这样以后不会再有满足该条件的记录。
-                    if (checkBaselineResetConditionSql(jdbcUtil)) {
-                        return OperationMode.BASELINE_RESET;
-                    }
+                    return OperationMode.BASELINE_RESET;
                 }
                 // 已经存在数据库版本控制表，根据当前资源目录下的sql脚本与版本控制表中各个业务空间的最新版本做增量的sql脚本执行。
                 return OperationMode.DEPLOY_INCREASE;

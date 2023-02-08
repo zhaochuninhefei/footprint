@@ -1,10 +1,17 @@
 package czhao.open.footprint.versionctl.chain;
 
 import czhao.open.footprint.utils.JdbcUtil;
+import czhao.open.footprint.utils.ScriptReader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
+import org.springframework.core.io.support.ResourcePatternResolver;
 
+import java.io.*;
 import java.sql.Connection;
+import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * 数据库版本控制任务抽象类
@@ -75,6 +82,51 @@ public abstract class DbVersionCtlAbstractTask implements DbVersionCtlTask {
         DbVersionCtlTask nextTask = this.context.pollTask();
         if (nextTask != null) {
             nextTask.doMyWork();
+        }
+    }
+
+    @SuppressWarnings("squid:S112")
+    protected InputStream loadInputStreamFromClassPath(String classPath) {
+        InputStream inputStream;
+        ResourcePatternResolver resolver = new PathMatchingResourcePatternResolver();
+        try {
+            Resource[] resources = resolver.getResources(classPath);
+            if (resources.length == 0) {
+                inputStream = null;
+            } else {
+                inputStream = resources[0].getInputStream();
+            }
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        return inputStream;
+    }
+
+    @SuppressWarnings("squid:S112")
+    protected InputStream loadInputStreamFromFile(String filePath) {
+        InputStream inputStream;
+        File sqlFile = new File(filePath);
+        if (sqlFile.exists() && sqlFile.isFile()) {
+            try {
+                inputStream = new FileInputStream(sqlFile);
+            } catch (FileNotFoundException e) {
+                throw new RuntimeException(e);
+            }
+        } else {
+            inputStream = null;
+        }
+        return inputStream;
+    }
+
+    protected List<String> readSqlFromInputStream(String dbVersionTableName, boolean needReplaceTblName, InputStream inputStream) {
+        ScriptReader scriptReader = new ScriptReader(inputStream);
+        List<String> sqlLines = scriptReader.readSqls();
+        if (needReplaceTblName) {
+            return sqlLines.stream()
+                    .map(sqlLine -> sqlLine.replace("brood_db_version_ctl", dbVersionTableName))
+                    .collect(Collectors.toList());
+        } else {
+            return sqlLines;
         }
     }
 }

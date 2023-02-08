@@ -18,7 +18,8 @@ import java.util.regex.Pattern;
 @SuppressWarnings("unused")
 public class InsertBaselineTask extends DbVersionCtlAbstractTask {
 
-    private static final Pattern PTN_VERSION = Pattern.compile("^([A-Za-z0-9]+)_V(\\d+)\\.(\\d+)\\.(\\d+)$");
+    private static final Pattern PTN_VERSION_DEFAULT = Pattern.compile("^([A-Za-z0-9]+)_V(\\d+)\\.(\\d+)\\.(\\d+)$");
+    private static final Pattern PTN_VERSION_EXTEND = Pattern.compile("^([A-Za-z0-9]+)_V(\\d+)\\.(\\d+)\\.(\\d+)\\.(\\d+)$");
 
     private final List<String> businessSpaces = new ArrayList<>();
     private final List<String> bsVersions = new ArrayList<>();
@@ -49,19 +50,34 @@ public class InsertBaselineTask extends DbVersionCtlAbstractTask {
         for (int i = 0; i < this.businessSpaces.size(); i++) {
             String bs = this.businessSpaces.get(i);
             String version = this.bsVersions.get(i);
-            Matcher matcher = PTN_VERSION.matcher(version);
-            if (matcher.matches()) {
-                int major = Integer.parseInt(matcher.group(2));
-                int minor = Integer.parseInt(matcher.group(3));
-                int patch = Integer.parseInt(matcher.group(4));
+            Matcher matcherDefault = PTN_VERSION_DEFAULT.matcher(version);
+            if (matcherDefault.matches()) {
+                int major = Integer.parseInt(matcherDefault.group(2));
+                int minor = Integer.parseInt(matcherDefault.group(3));
+                int patch = Integer.parseInt(matcherDefault.group(4));
+                int extend = 0;
                 this.jdbcUtil.execute(this.connection, insertSql,
-                        bs, major, minor, patch, version, "none", "BaseLine", "none", "none", 1, 0,
+                        bs, major, minor, patch, extend, version, "none", "BaseLine", "none", "none", 1, 0,
                         DateTimeFormatter.ofPattern(DbVersionCtlContext.DATETIME_PTN).format(LocalDateTime.now()),
                         this.context.getDbVersionCtlProps().getUsername());
-                logger.info("数据库基线版本添加, business_space: {} , major_version: {} , minor_version: {} , patch_version: {} .",
-                        bs, major, minor, patch);
+                logger.info("数据库基线版本添加, business_space: {} , major_version: {} , minor_version: {} , patch_version: {}, extend_version: {} .",
+                        bs, major, minor, patch, extend);
             } else {
-                throw new RuntimeException("DbVersionCtlProps.baselineBusinessSpaceAndVersions format is not correct!");
+                Matcher matcherExtend = PTN_VERSION_EXTEND.matcher(version);
+                if (matcherExtend.matches()) {
+                    int major = Integer.parseInt(matcherExtend.group(2));
+                    int minor = Integer.parseInt(matcherExtend.group(3));
+                    int patch = Integer.parseInt(matcherExtend.group(4));
+                    int extend = Integer.parseInt(matcherExtend.group(5));
+                    this.jdbcUtil.execute(this.connection, insertSql,
+                            bs, major, minor, patch, extend, version, "none", "BaseLine", "none", "none", 1, 0,
+                            DateTimeFormatter.ofPattern(DbVersionCtlContext.DATETIME_PTN).format(LocalDateTime.now()),
+                            this.context.getDbVersionCtlProps().getUsername());
+                    logger.info("数据库基线版本添加, business_space: {} , major_version: {} , minor_version: {} , patch_version: {}, extend_version: {} .",
+                            bs, major, minor, patch, extend);
+                } else {
+                    throw new RuntimeException("DbVersionCtlProps.baselineBusinessSpaceAndVersions format is not correct!");
+                }
             }
         }
         logger.info("InsertBaselineTask end...");

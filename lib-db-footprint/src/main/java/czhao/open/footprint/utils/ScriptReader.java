@@ -28,7 +28,7 @@ public class ScriptReader {
      *
      * <p>默认SQL脚本的字符集为UTF-8，目前不支持其他字符集。</p>
      */
-    private final Charset charset = StandardCharsets.UTF_8;
+    private Charset charset = StandardCharsets.UTF_8;
 
     /**
      * ScriptReader构造方法
@@ -37,6 +37,18 @@ public class ScriptReader {
      */
     public ScriptReader(InputStream inputStream) {
         this.inputStream = inputStream;
+    }
+
+    /**
+     * ScriptReader构造方法
+     *
+     * @param inputStream 脚本文件输入流
+     * @param charset 脚本文件字符集
+     */
+    @SuppressWarnings("unused")
+    public ScriptReader(InputStream inputStream, Charset charset) {
+        this.inputStream = inputStream;
+        this.charset = charset;
     }
 
     /**

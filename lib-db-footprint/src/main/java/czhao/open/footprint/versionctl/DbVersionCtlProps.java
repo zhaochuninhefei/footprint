@@ -45,6 +45,11 @@ public class DbVersionCtlProps {
     // 以后升级版本时，即使忘记将【baselineReset】属性清除或设置为"n"也不会导致数据库基线版本被误重置。
     private String baselineResetConditionSql = "";
 
+    // 是否修改DbVersionTable结构
+    private String modifyDbVersionTable = "n";
+    // 修改DbVersionTable的SQL
+    private String modifyDbVersionTableSqlPath = "classpath:db/versionctl/modify_brood_db_version_ctl.sql";
+
     public ScriptResourceMode getScriptResourceMode() {
         return scriptResourceMode;
     }
@@ -140,7 +145,7 @@ public class DbVersionCtlProps {
     }
 
     public void setBaselineReset(String baselineReset) {
-        if ("y".equals(baselineReset) || "Y".equals(baselineReset)) {
+        if ("y".equalsIgnoreCase(baselineReset)) {
             this.baselineReset = "y";
         }
     }
@@ -150,8 +155,28 @@ public class DbVersionCtlProps {
     }
 
     public void setBaselineResetConditionSql(String baselineResetConditionSql) {
-        if (!baselineResetConditionSql.isBlank()) {
+        if (baselineResetConditionSql != null && !baselineResetConditionSql.isBlank()) {
             this.baselineResetConditionSql = baselineResetConditionSql.strip();
+        }
+    }
+
+    public String getModifyDbVersionTable() {
+        return modifyDbVersionTable;
+    }
+
+    public void setModifyDbVersionTable(String modifyDbVersionTable) {
+        if ("y".equalsIgnoreCase(modifyDbVersionTable)) {
+            this.modifyDbVersionTable = "y";
+        }
+    }
+
+    public String getModifyDbVersionTableSqlPath() {
+        return modifyDbVersionTableSqlPath;
+    }
+
+    public void setModifyDbVersionTableSqlPath(String modifyDbVersionTableSqlPath) {
+        if (modifyDbVersionTableSqlPath != null && !modifyDbVersionTableSqlPath.isBlank()) {
+            this.modifyDbVersionTableSqlPath = modifyDbVersionTableSqlPath;
         }
     }
 

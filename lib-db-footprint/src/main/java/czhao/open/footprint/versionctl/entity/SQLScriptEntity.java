@@ -16,12 +16,13 @@ import java.util.regex.Pattern;
 @SuppressWarnings("unused")
 public class SQLScriptEntity implements Comparable<SQLScriptEntity> {
     // sql脚本文件名正则表达式
-    private static final Pattern PTN_SCRIPT_NAME = Pattern.compile("^([A-Za-z0-9]+)_V(\\d+)\\.(\\d+)\\.(\\d+)_(\\w+)\\.sql$");
+    private static final Pattern PTN_SCRIPT_NAME_DEFAULT = Pattern.compile("^([A-Za-z0-9]+)_V(\\d+)\\.(\\d+)\\.(\\d+)_(\\w+)\\.sql$");
+    private static final Pattern PTN_SCRIPT_NAME_EXTEND = Pattern.compile("^([A-Za-z0-9]+)_V(\\d+)\\.(\\d+)\\.(\\d+)\\.(\\d+)_(\\w+)\\.sql$");
 
     private final Logger logger = LoggerFactory.getLogger(this.getClass());
 
     /* SQLScript对象构建属性 */
-    // sql脚本文件名，格式为"[业务空间]_V[major].[minor].[patch]_[自定义名称].sql"
+    // sql脚本文件名，格式为"[业务空间]_V[major].[minor].[patch].[extend]_[自定义名称].sql"
     private String fileName;
     // 脚本输入流
     private InputStream inputStream;
@@ -31,12 +32,14 @@ public class SQLScriptEntity implements Comparable<SQLScriptEntity> {
     // 同一个业务空间中的表的结构与初期数据的版本管理采用统一的版本号递增顺序；不同业务空间的版本号的递增顺序是不同的。
     // 业务空间命名只支持大小写字母与数字
     private String businessSpace;
-    // 主版本号，一个业务空间对应的主版本号，对应"x.y.z"中的x，只支持非负整数
+    // 主版本号，一个业务空间对应的主版本号，对应"x.y.z.t"中的x，只支持非负整数
     private int majorVersion;
-    // 次版本号，一个业务空间对应的次版本号，对应"x.y.z"中的y，只支持非负整数
+    // 次版本号，一个业务空间对应的次版本号，对应"x.y.z.t"中的y，只支持非负整数
     private int minorVersion;
-    // 补丁版本号，一个业务空间对应的补丁版本号，对应"x.y.z"中的z，只支持非负整数
+    // 补丁版本号，一个业务空间对应的补丁版本号，对应"x.y.z.t"中的z，只支持非负整数
     private int patchVersion;
+    // 扩展版本号，一个业务空间对应的扩展版本号，对应"x.y.z.t"中的4，只支持非负整数
+    private int extendVersion;
     // 一个业务空间的完整版本号，格式为"[businessSpace]_V[majorVersion].[minorVersion].[patchVersion]"
     private String version;
     // 该sql脚本的自定义名称，支持大小写字母，数字与下划线
@@ -51,16 +54,28 @@ public class SQLScriptEntity implements Comparable<SQLScriptEntity> {
     public SQLScriptEntity(String fileName, InputStream inputStream) {
         this.fileName = fileName;
         this.inputStream = inputStream;
-        Matcher matcher = PTN_SCRIPT_NAME.matcher(fileName);
-        if (matcher.matches()) {
-            this.businessSpace = matcher.group(1);
-            this.majorVersion = Integer.parseInt(matcher.group(2));
-            this.minorVersion = Integer.parseInt(matcher.group(3));
-            this.patchVersion = Integer.parseInt(matcher.group(4));
-            this.customName = matcher.group(5);
-            this.version = String.format("%s_V%s.%s.%s", businessSpace, majorVersion, minorVersion, patchVersion);
+        Matcher matcherDefault = PTN_SCRIPT_NAME_DEFAULT.matcher(fileName);
+        if (matcherDefault.matches()) {
+            this.businessSpace = matcherDefault.group(1);
+            this.majorVersion = Integer.parseInt(matcherDefault.group(2));
+            this.minorVersion = Integer.parseInt(matcherDefault.group(3));
+            this.patchVersion = Integer.parseInt(matcherDefault.group(4));
+            this.extendVersion = 0;
+            this.customName = matcherDefault.group(5);
+            this.version = String.format("%s_V%s.%s.%s.%s", businessSpace, majorVersion, minorVersion, patchVersion, extendVersion);
         } else {
-            throw new RuntimeException(fileName + " format is not correct!");
+            Matcher matcherExtend = PTN_SCRIPT_NAME_EXTEND.matcher(fileName);
+            if (matcherExtend.matches()) {
+                this.businessSpace = matcherExtend.group(1);
+                this.majorVersion = Integer.parseInt(matcherExtend.group(2));
+                this.minorVersion = Integer.parseInt(matcherExtend.group(3));
+                this.patchVersion = Integer.parseInt(matcherExtend.group(4));
+                this.extendVersion = Integer.parseInt(matcherExtend.group(5));
+                this.customName = matcherExtend.group(6);
+                this.version = String.format("%s_V%s.%s.%s.%s", businessSpace, majorVersion, minorVersion, patchVersion, extendVersion);
+            } else {
+                throw new RuntimeException(fileName + " format is not correct!");
+            }
         }
     }
 
@@ -70,9 +85,10 @@ public class SQLScriptEntity implements Comparable<SQLScriptEntity> {
      * @param major 数据库版本控制表最新记录的主版本号
      * @param minor 数据库版本控制表最新记录的次版本号
      * @param patch 数据库版本控制表最新记录的补丁版本号
+     * @param extend 数据库版本控制表最新记录的扩展版本号
      * @return 是否需要执行
      */
-    public boolean checkNeed(int major, int minor, int patch) {
+    public boolean checkNeed(int major, int minor, int patch, int extend) {
         if (this.majorVersion < major) {
             return false;
         } else if (this.majorVersion > major) {
@@ -85,14 +101,24 @@ public class SQLScriptEntity implements Comparable<SQLScriptEntity> {
             return true;
         }
 
-        return this.patchVersion > patch;
+        if (this.patchVersion < patch) {
+            return false;
+        } else if (this.patchVersion > patch) {
+            return true;
+        }
+
+        return this.extendVersion > extend;
     }
 
     @Override
     public int compareTo(SQLScriptEntity o) {
         if (this.getMajorVersion() == o.getMajorVersion()) {
             if (this.getMinorVersion() == o.getMinorVersion()) {
-                return Integer.compare(this.getPatchVersion(), o.getPatchVersion());
+                if (this.getPatchVersion() == o.getPatchVersion()) {
+                    return Integer.compare(this.getExtendVersion(), o.getExtendVersion());
+                } else {
+                    return Integer.compare(this.getPatchVersion(), o.getPatchVersion());
+                }
             } else {
                 return Integer.compare(this.getMinorVersion(), o.getMinorVersion());
             }
@@ -122,6 +148,7 @@ public class SQLScriptEntity implements Comparable<SQLScriptEntity> {
                 ", majorVersion=" + majorVersion +
                 ", minorVersion=" + minorVersion +
                 ", patchVersion=" + patchVersion +
+                ", extendVersion=" + extendVersion +
                 ", version='" + version + '\'' +
                 ", customName='" + customName + '\'' +
                 '}';
@@ -173,6 +200,14 @@ public class SQLScriptEntity implements Comparable<SQLScriptEntity> {
 
     public void setPatchVersion(int patchVersion) {
         this.patchVersion = patchVersion;
+    }
+
+    public int getExtendVersion() {
+        return extendVersion;
+    }
+
+    public void setExtendVersion(int extendVersion) {
+        this.extendVersion = extendVersion;
     }
 
     public String getVersion() {

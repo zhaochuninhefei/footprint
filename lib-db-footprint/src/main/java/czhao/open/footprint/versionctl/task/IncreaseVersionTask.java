@@ -11,6 +11,7 @@ import org.springframework.core.io.support.ResourcePatternResolver;
 
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.sql.SQLException;
 import java.time.Duration;
@@ -42,7 +43,7 @@ public class IncreaseVersionTask extends DbVersionCtlAbstractTask {
 
         // 获取数据库版本升级SQL脚本目录集合
         List<String> scriptDirPaths = this.context.getDbVersionCtlProps().makeScriptDirPaths();
-        logger.debug("IncreaseVersionTask scriptDirPaths:{}", scriptDirPaths.toString());
+        logger.debug("IncreaseVersionTask scriptDirPaths:{}", scriptDirPaths);
 
         // 生成sql脚本对象集合
         List<SQLScriptEntity> sqlByBs = createSqlScriptEntities(scriptDirPaths);
@@ -62,28 +63,34 @@ public class IncreaseVersionTask extends DbVersionCtlAbstractTask {
 
         Map<String, List<SQLScriptEntity>> sqlGrpByBs = sqlByBs.stream()
                 .collect(Collectors.groupingBy(SQLScriptEntity::getBusinessSpace));
-        for (String bs : sqlGrpByBs.keySet()) {
-            List<DbVersionEntity> dbVersionEntities = queryDbVersionEntities(bs);
-            int curMajor, curMinor, curPatch;
-            if (dbVersionEntities.size() > 0) {
+        for (Map.Entry<String, List<SQLScriptEntity>> gp : sqlGrpByBs.entrySet()) {
+            List<DbVersionEntity> dbVersionEntities = queryDbVersionEntities(gp.getKey());
+            int curMajor;
+            int curMinor;
+            int curPatch;
+            int curExtend;
+            if (!dbVersionEntities.isEmpty()) {
                 curMajor = dbVersionEntities.get(0).getMajorVersion();
                 curMinor = dbVersionEntities.get(0).getMinorVersion();
                 curPatch = dbVersionEntities.get(0).getPatchVersion();
+                curExtend = dbVersionEntities.get(0).getExtendVersion();
             } else {
                 curMajor = 0;
                 curMinor = 0;
                 curPatch = 0;
+                curExtend = 0;
             }
-            List<SQLScriptEntity> sqlScriptEntities = sqlGrpByBs.get(bs).stream()
-                    .filter(sqlScriptEntity -> sqlScriptEntity.checkNeed(curMajor, curMinor, curPatch))
+            @SuppressWarnings("SimplifyStreamApiCallChains")
+            List<SQLScriptEntity> sqlScriptEntities = gp.getValue().stream()
+                    .filter(sqlScriptEntity -> sqlScriptEntity.checkNeed(curMajor, curMinor, curPatch, curExtend))
                     .sorted(SQLScriptEntity::compareTo)
                     .collect(Collectors.toList());
-            if (sqlScriptEntities.size() == 0) {
-                logger.info("业务空间 {} 没有增量sql脚本需要执行.", bs);
+            if (sqlScriptEntities.isEmpty()) {
+                logger.info("业务空间 {} 没有增量sql脚本需要执行.", gp.getKey());
                 continue;
             }
             sqlScriptEntities.forEach(sqlScriptEntity -> {
-                logger.info("增量执行脚本:" + sqlScriptEntity.getFileName());
+                logger.info("增量执行脚本:{}", sqlScriptEntity.getFileName());
 
                 // 读取脚本内容
                 ScriptReader scriptReader = new ScriptReader(sqlScriptEntity.getInputStream());
@@ -95,7 +102,7 @@ public class IncreaseVersionTask extends DbVersionCtlAbstractTask {
                 // 插入版本记录
                 this.jdbcUtil.execute(this.connection, insertSql,
                         sqlScriptEntity.getBusinessSpace(), sqlScriptEntity.getMajorVersion(),
-                        sqlScriptEntity.getMinorVersion(), sqlScriptEntity.getPatchVersion(),
+                        sqlScriptEntity.getMinorVersion(), sqlScriptEntity.getPatchVersion(), sqlScriptEntity.getExtendVersion(),
                         sqlScriptEntity.getVersion(), sqlScriptEntity.getCustomName(),
                         "SQL", sqlScriptEntity.getFileName(), "none", 0, -1,
                         DateTimeFormatter.ofPattern(DbVersionCtlContext.DATETIME_PTN).format(startTime),
@@ -110,10 +117,11 @@ public class IncreaseVersionTask extends DbVersionCtlAbstractTask {
                 // 更新版本记录
                 this.jdbcUtil.execute(this.connection, updateSql,
                         mills, sqlScriptEntity.getBusinessSpace(),
-                        sqlScriptEntity.getMajorVersion(), sqlScriptEntity.getMinorVersion(), sqlScriptEntity.getPatchVersion());
-                logger.info("数据库版本记录更新, business_space: {} , major_version: {} , minor_version: {} , patch_version: {} .",
+                        sqlScriptEntity.getMajorVersion(), sqlScriptEntity.getMinorVersion(),
+                        sqlScriptEntity.getPatchVersion(), sqlScriptEntity.getExtendVersion());
+                logger.info("数据库版本记录更新, business_space: {} , major_version: {} , minor_version: {} , patch_version: {} , extend_version: {} .",
                         sqlScriptEntity.getBusinessSpace(), sqlScriptEntity.getMajorVersion(),
-                        sqlScriptEntity.getMinorVersion(), sqlScriptEntity.getPatchVersion());
+                        sqlScriptEntity.getMinorVersion(), sqlScriptEntity.getPatchVersion(), sqlScriptEntity.getExtendVersion());
             });
         }
     }
@@ -123,31 +131,39 @@ public class IncreaseVersionTask extends DbVersionCtlAbstractTask {
         try {
             for (String scriptDirPath : scriptDirPaths) {
                 if (scriptDirPath.startsWith("classpath:")) {
-                    ResourcePatternResolver resolver = new PathMatchingResourcePatternResolver();
-                    String pathPattern = scriptDirPath.endsWith("/") ? scriptDirPath + "*.sql" : scriptDirPath + "/*.sql";
-                    Resource[] resources = resolver.getResources(pathPattern);
-                    for (Resource resource : resources) {
-                        sqlByBs.add(new SQLScriptEntity(resource.getFilename(), resource.getInputStream()));
-                    }
+                    readSqlFromClassPath(sqlByBs, scriptDirPath);
                 } else {
-                    File folder = new File(scriptDirPath);
-                    if (folder.exists() && folder.isDirectory()) {
-                        File[] files = folder.listFiles((dir, name) -> name.endsWith(".sql"));
-                        if (files == null || files.length == 0) {
-                            throw new RuntimeException("There is no sql files in [" + scriptDirPath + "]!");
-                        }
-                        for (File file : files) {
-                            sqlByBs.add(new SQLScriptEntity(file.getName(), new FileInputStream(file)));
-                        }
-                    } else {
-                        throw new RuntimeException(scriptDirPath + " is not Filesystem Directory!");
-                    }
+                    readSqlFromFile(sqlByBs, scriptDirPath);
                 }
             }
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
         return sqlByBs;
+    }
+
+    private void readSqlFromClassPath(List<SQLScriptEntity> sqlByBs, String scriptDirPath) throws IOException {
+        ResourcePatternResolver resolver = new PathMatchingResourcePatternResolver();
+        String pathPattern = scriptDirPath.endsWith("/") ? scriptDirPath + "*.sql" : scriptDirPath + "/*.sql";
+        Resource[] resources = resolver.getResources(pathPattern);
+        for (Resource resource : resources) {
+            sqlByBs.add(new SQLScriptEntity(resource.getFilename(), resource.getInputStream()));
+        }
+    }
+
+    private void readSqlFromFile(List<SQLScriptEntity> sqlByBs, String scriptDirPath) throws FileNotFoundException {
+        File folder = new File(scriptDirPath);
+        if (folder.exists() && folder.isDirectory()) {
+            File[] files = folder.listFiles((dir, name) -> name.endsWith(".sql"));
+            if (files == null || files.length == 0) {
+                throw new RuntimeException("There is no sql files in [" + scriptDirPath + "]!");
+            }
+            for (File file : files) {
+                sqlByBs.add(new SQLScriptEntity(file.getName(), new FileInputStream(file)));
+            }
+        } else {
+            throw new RuntimeException(scriptDirPath + " is not Filesystem Directory!");
+        }
     }
 
     private List<DbVersionEntity> queryDbVersionEntities(String bs) {
@@ -163,6 +179,7 @@ public class IncreaseVersionTask extends DbVersionCtlAbstractTask {
                     dbVersionEntity.setMajorVersion(resultSet.getInt("major_version"));
                     dbVersionEntity.setMinorVersion(resultSet.getInt("minor_version"));
                     dbVersionEntity.setPatchVersion(resultSet.getInt("patch_version"));
+                    dbVersionEntity.setExtendVersion(resultSet.getInt("extend_version"));
                     dbVersionEntity.setVersion(resultSet.getString("version"));
                     dbVersionEntity.setCustomName(resultSet.getString("version"));
                     dbVersionEntity.setVersionType(resultSet.getString("version_type"));

@@ -44,7 +44,14 @@ public class DbVersionEntity {
     private int patchVersion;
 
     /**
-     * 版本号，按固定规律拼接而成："V[主版本号].[次版本号].[补丁版本号]"，如"V1.0.0"
+     * 扩展版本号
+     *
+     * <p>"业务空间+主版本号+次版本号+补丁版本号+扩展版本号"作为逻辑主键。Mysql下即唯一性约束，其他数据库可能是组合物理主键。</p>
+     */
+    private int extendVersion;
+
+    /**
+     * 版本号，按固定规律拼接而成："V[主版本号].[次版本号].[补丁版本号].[扩展版本号]"，如"V1.0.0.0"
      */
     private String version;
 
@@ -108,6 +115,7 @@ public class DbVersionEntity {
                 ", majorVersion=" + majorVersion +
                 ", minorVersion=" + minorVersion +
                 ", patchVersion=" + patchVersion +
+                ", extendVersion=" + extendVersion +
                 ", version='" + version + '\'' +
                 ", customName='" + customName + '\'' +
                 ", versionType=" + versionType +
@@ -158,6 +166,14 @@ public class DbVersionEntity {
 
     public void setPatchVersion(int patchVersion) {
         this.patchVersion = patchVersion;
+    }
+
+    public int getExtendVersion() {
+        return extendVersion;
+    }
+
+    public void setExtendVersion(int extendVersion) {
+        this.extendVersion = extendVersion;
     }
 
     public String getVersion() {

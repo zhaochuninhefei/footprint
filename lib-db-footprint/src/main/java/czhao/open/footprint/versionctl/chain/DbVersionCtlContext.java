@@ -18,12 +18,12 @@ public class DbVersionCtlContext {
     /**
      * 数据库版本控制表字段(不带ID)
      */
-    public static final String DB_VERSION_CTL_COLS_WITHOUT_ID = "business_space, major_version, minor_version, patch_version, version, custom_name, version_type, script_file_name, script_digest_hex, success, execution_time, install_time, install_user";
+    public static final String DB_VERSION_CTL_COLS_WITHOUT_ID = "business_space, major_version, minor_version, patch_version, extend_version, version, custom_name, version_type, script_file_name, script_digest_hex, success, execution_time, install_time, install_user";
 
     /**
      * 数据库版本控制表字段插入SQL文VALUES片段
      */
-    public static final String DB_VERSION_CTL_INSERT_VALUES = " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+    public static final String DB_VERSION_CTL_INSERT_VALUES = " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
     /**
      * 日期格式 "yyyy-MM-dd HH:mm:ss"
@@ -92,6 +92,7 @@ public class DbVersionCtlContext {
      * @param task 将要添加的任务
      */
     public void offerTask(DbVersionCtlTask task) {
+        //noinspection ResultOfMethodCallIgnored
         this.tasks.offer(task);
     }
 
@@ -136,7 +137,7 @@ public class DbVersionCtlContext {
      */
     public String makeUpdateSql() {
         return "UPDATE " + this.dbVersionCtlProps.getDbVersionTableName()
-                + " set success = 1, execution_time = ? WHERE business_space = ? AND major_version = ? AND minor_version = ? AND patch_version = ?";
+                + " set success = 1, execution_time = ? WHERE business_space = ? AND major_version = ? AND minor_version = ? AND patch_version = ? AND extend_version = ?";
     }
 
     /**
@@ -148,6 +149,6 @@ public class DbVersionCtlContext {
         return "SELECT id, " + DbVersionCtlContext.DB_VERSION_CTL_COLS_WITHOUT_ID
                 + " FROM " + this.dbVersionCtlProps.getDbVersionTableName()
                 + " WHERE business_space = ?"
-                + " ORDER BY major_version DESC , minor_version DESC , patch_version DESC";
+                + " ORDER BY major_version DESC , minor_version DESC , patch_version DESC , extend_version DESC";
     }
 }
