@@ -1,6 +1,6 @@
 #!/bin/bash
 
-export JAVA_HOME=/usr/java/jdk-11.0.7+10
+export JAVA_HOME=/usr/java/jdk-17.0.3+7
 
 mvn -version
 
