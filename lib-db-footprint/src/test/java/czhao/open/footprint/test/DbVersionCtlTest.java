@@ -181,7 +181,7 @@ public class DbVersionCtlTest {
         dbVersionCtlProps.setPassword(JDBC_PASSWORD);
         dbVersionCtlProps.setExistTblQuerySql("show tables");
         dbVersionCtlProps.setBaselineReset("y");
-        dbVersionCtlProps.setBaselineResetConditionSql("SELECT * FROM brood_db_version_ctl1 WHERE version = 'template_V3.10.11'");
+        dbVersionCtlProps.setBaselineResetConditionSql("SELECT * FROM brood_db_version_ctl1 WHERE version = 'template_V3.10.11.0'");
 
         DbVersionCtl dbVersionCtl = new DbVersionCtl(dbVersionCtlProps);
         dbVersionCtl.doDBVersionControl();
